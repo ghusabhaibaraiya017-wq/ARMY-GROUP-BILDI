@@ -10,7 +10,7 @@ const languages = [
 const fallbackCategories = [
   ['youth','યુવાનો','👥'],['students','વિદ્યાર્થીઓ','🎓'],['farmers','ખેડૂતો','🌾'],
   ['jobs','સરકારી નોકરી','💼'],['disability-support','દિવ્યાંગ સહાય','♿'],
-  ['schemes','સરકારી યોજનાઓ','🏛️'],['education','શિક્ષણ','📚'],['agriculture','ખેતી','🚜']
+  ['schemes','સરકારી યોજનાઓ','🏛️'],['education','શિક્ષણ','📚'],['agriculture','ખેતી','🚜'],['news','સમાચાર','📰'],['announcements','મહત્વપૂર્ણ જાહેરાતો','📢']
 ]
 type Post = { id:string; slug:string; original_title:string; original_description:string; translatedTitle?:string; translatedDescription?:string; published_at:string|null; is_featured:boolean; categories?:{name:string;slug:string}|null }
 export default function App() {
