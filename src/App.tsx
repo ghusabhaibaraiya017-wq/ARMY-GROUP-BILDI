@@ -12,7 +12,7 @@ const fallbackCategories = [
   ['jobs','સરકારી નોકરી','💼'],['disability-support','દિવ્યાંગ સહાય','♿'],
   ['schemes','સરકારી યોજનાઓ','🏛️'],['education','શિક્ષણ','📚'],['agriculture','ખેતી','🚜']
 ]
-type Post = { id:string; slug:string; original_title:string; original_description:string; published_at:string|null; is_featured:boolean; categories?:{name:string;slug:string}|null }
+type Post = { id:string; slug:string; original_title:string; original_description:string; translatedTitle?:string; translatedDescription?:string; published_at:string|null; is_featured:boolean; categories?:{name:string;slug:string}|null }
 export default function App() {
   const [language,setLanguage] = useState(localStorage.getItem('agb-language') || 'gu')
   const [category,setCategory] = useState('')
@@ -29,20 +29,32 @@ export default function App() {
     if (!supabase) return
     let active = true
     setLoading(true)
-    supabase.from('posts').select('id,slug,original_title,original_description,published_at,is_featured,categories(name,slug)')
-      .eq('status','published').not('published_at','is',null).lte('published_at',new Date().toISOString())
-      .order('published_at',{ascending:false}).limit(40)
-      .then(({data,error}) => {
-        if (!active) return
-        if (error) setNotice('માહિતી લોડ થઈ શકી નથી. કૃપા કરીને પછી ફરી પ્રયાસ કરો.')
-        else setPosts((data || []) as unknown as Post[])
-        setLoading(false)
-      })
+    async function fetchFeed() {
+      const {data,error} = await supabase.from('posts').select('id,slug,original_title,original_description,published_at,is_featured,categories(name,slug)')
+        .eq('status','published').not('published_at','is',null).lte('published_at',new Date().toISOString())
+        .order('published_at',{ascending:false}).limit(40)
+      if (!active) return
+      if (error) setNotice('માહિતી લોડ થઈ શકી નથી. કૃપા કરીને પછી ફરી પ્રયાસ કરો.')
+      else {
+        let rows = (data || []) as unknown as Post[]
+        if (language !== 'gu' && rows.length) {
+          const {data:translations} = await supabase.from('post_translations')
+            .select('post_id,title,description,translation_status')
+            .in('post_id',rows.map(p=>p.id)).eq('language_code',language)
+            .in('translation_status',['reviewed','published'])
+          const byPost = new Map((translations || []).map(t=>[t.post_id,t]))
+          rows = rows.map(p=>({...p,translatedTitle:byPost.get(p.id)?.title,translatedDescription:byPost.get(p.id)?.description}))
+        }
+        if (active) setPosts(rows)
+      }
+      if (active) setLoading(false)
+    }
+    fetchFeed()
     return () => { active = false }
-  },[])
+  },[language])
   const visible = useMemo(() => posts.filter(p =>
     (!category || p.categories?.slug === category) &&
-    (p.original_title.toLowerCase().includes(search.toLowerCase()) || p.original_description.toLowerCase().includes(search.toLowerCase()))
+    ((p.translatedTitle || p.original_title).toLowerCase().includes(search.toLowerCase()) || (p.translatedDescription || p.original_description).toLowerCase().includes(search.toLowerCase()))
   ),[posts,category,search])
   const activeLanguage = languages.find(x=>x[0]===language)?.[1] || 'ગુજરાતી'
   return <main className={dark?'app dark':'app'}>
@@ -71,10 +83,10 @@ export default function App() {
       {notice&&<div className="notice">{notice}</div>}
       {loading&&<p className="muted">માહિતી લોડ થઈ રહી છે...</p>}
       {!loading&&supabase&&visible.length===0&&<div className="empty"><span>📭</span><b>હજુ પ્રકાશિત માહિતી ઉપલબ્ધ નથી</b><p>નવી માહિતી પ્રકાશિત થતાં અહીં દેખાશે.</p></div>}
-      <div className="post-grid">{visible.map(post=><button className="post-card" key={post.id} onClick={()=>setSelected(post)}><span className="post-category">{post.categories?.name || 'માહિતી'}</span><h3>{post.original_title}</h3><p>{post.original_description}</p><small>{post.published_at?new Date(post.published_at).toLocaleDateString('gu-IN'):''} · સંપૂર્ણ માહિતી વાંચો ↗</small></button>)}</div>
+      <div className="post-grid">{visible.map(post=><button className="post-card" key={post.id} onClick={()=>setSelected(post)}><span className="post-category">{post.categories?.name || 'માહિતી'}</span><h3>{post.translatedTitle || post.original_title}</h3><p>{post.translatedDescription || post.original_description}</p><small>{post.published_at?new Date(post.published_at).toLocaleDateString('gu-IN'):''} · સંપૂર્ણ માહિતી વાંચો ↗</small></button>)}</div>
     </section>
     <footer><b>🇮🇳 ARMY GROUP BILDI</b><span>સાચી માહિતી • દરેક નાગરિક માટે</span><small>© {new Date().getFullYear()} ARMY GROUP BILDI</small></footer>
-    {selected&&<div className="modal-backdrop" role="presentation" onClick={()=>setSelected(null)}><article className="modal" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setSelected(null)}>✕</button><span className="post-category">{selected.categories?.name}</span><h2>{selected.original_title}</h2><p>{selected.original_description}</p><small>મૂળ માહિતી હાલમાં ગુજરાતી ભાષામાં ઉપલબ્ધ છે.</small></article></div>}
+    {selected&&<div className="modal-backdrop" role="presentation" onClick={()=>setSelected(null)}><article className="modal" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setSelected(null)}>✕</button><span className="post-category">{selected.categories?.name}</span><h2>{selected.translatedTitle || selected.original_title}</h2><p>{selected.translatedDescription || selected.original_description}</p><small>મૂળ માહિતી હાલમાં ગુજરાતી ભાષામાં ઉપલબ્ધ છે.</small></article></div>}
     <nav className="bottom-nav"><button className="active">⌂<span>હોમ</span></button><button onClick={()=>setCategory('jobs')}>▤<span>નોકરી</span></button><button onClick={()=>setCategory('schemes')}>◈<span>યોજનાઓ</span></button><button onClick={()=>setNotice('બુકમાર્ક માટે લોગિન સુવિધા આગળના તબક્કામાં ઉમેરાશે.')}>♡<span>સેવ</span></button></nav>
   </main>
 }
