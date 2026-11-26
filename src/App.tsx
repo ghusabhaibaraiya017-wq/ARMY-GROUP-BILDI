@@ -27,10 +27,11 @@ export default function App() {
   },[language])
   useEffect(() => {
     if (!supabase) return
+    const client = supabase
     let active = true
     setLoading(true)
     async function fetchFeed() {
-      const {data,error} = await supabase.from('posts').select('id,slug,original_title,original_description,published_at,is_featured,categories(name,slug)')
+      const {data,error} = await client.from('posts').select('id,slug,original_title,original_description,published_at,is_featured,categories(name,slug)')
         .eq('status','published').not('published_at','is',null).lte('published_at',new Date().toISOString())
         .order('published_at',{ascending:false}).limit(40)
       if (!active) return
@@ -38,7 +39,7 @@ export default function App() {
       else {
         let rows = (data || []) as unknown as Post[]
         if (language !== 'gu' && rows.length) {
-          const {data:translations} = await supabase.from('post_translations')
+          const {data:translations} = await client.from('post_translations')
             .select('post_id,title,description,translation_status')
             .in('post_id',rows.map(p=>p.id)).eq('language_code',language)
             .in('translation_status',['reviewed','published'])
